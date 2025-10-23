@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import './App.css';
-import { listItems, importExcel, exportExcel, getApiBase } from './api';
+import { listItems, importExcel, exportExcel, getApiBase, createItem, updateItem, deleteItem } from './api';
 import Toolbar from './components/Toolbar';
 import Filters from './components/Filters';
 import InventoryTable from './components/InventoryTable';
+import DeviceForm from './components/DeviceForm';
 
 /**
  * PUBLIC_INTERFACE
@@ -33,6 +34,10 @@ function App() {
   // UI state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Modal state
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
 
   // Debounce search to avoid excessive requests
   const [debouncedSearch, setDebouncedSearch] = useState(search);
@@ -122,6 +127,85 @@ function App() {
     }
   };
 
+  // Create new item: open empty form
+  const handleNew = () => {
+    setEditingItem(null);
+    setFormOpen(true);
+  };
+
+  // Edit existing: open with data
+  const handleEdit = (item) => {
+    setEditingItem(item);
+    setFormOpen(true);
+  };
+
+  // Optimistic create/update
+  const handleSave = async (payload) => {
+    // basic validation also enforced in form, but guard here too
+    if (!payload.asset_tag || String(payload.asset_tag).trim() === '') {
+      throw new Error('El código (asset_tag) es obligatorio.');
+    }
+
+    if (editingItem && editingItem.id != null) {
+      const id = editingItem.id;
+      // optimistic update
+      setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...payload } : it)));
+      try {
+        const resp = await updateItem(id, payload);
+        // reconcile with server response if it returns updated data
+        if (resp && resp.id != null) {
+          setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...resp } : it)));
+        } else {
+          // ensure we have updated_at roughly
+          setItems((prev) => prev.map((it) => (it.id === id ? { ...it, updated_at: new Date().toISOString() } : it)));
+        }
+      } catch (e) {
+        // rollback by refetch
+        setError(e?.message || 'No se pudo actualizar el dispositivo.');
+        setPage((p) => p); // trigger refresh flow
+      }
+    } else {
+      // optimistic create with temp id
+      const tempId = `tmp-${Date.now()}`;
+      const optimistic = { id: tempId, ...payload, created_at: new Date().toISOString() };
+      setItems((prev) => [optimistic, ...prev]);
+      setTotal((t) => t + 1);
+      try {
+        const resp = await createItem(payload);
+        // replace temp with actual
+        const newId = resp?.id ?? resp?.data?.id;
+        if (newId != null) {
+          setItems((prev) => prev.map((it) => (it.id === tempId ? { ...it, ...resp, id: newId } : it)));
+        } else {
+          // if no id returned, just trigger a refetch
+          setPage((p) => p);
+        }
+      } catch (e) {
+        // rollback optimistic
+        setItems((prev) => prev.filter((it) => it.id !== tempId));
+        setTotal((t) => Math.max(0, t - 1));
+        setError(e?.message || 'No se pudo crear el dispositivo.');
+      }
+    }
+  };
+
+  // Delete with optimistic removal
+  const handleDelete = async (item) => {
+    const id = item?.id;
+    if (id == null) return;
+    const prevItems = items;
+    setItems((cur) => cur.filter((it) => it.id !== id));
+    setTotal((t) => Math.max(0, t - 1));
+    try {
+      await deleteItem(id);
+    } catch (e) {
+      // rollback
+      setItems(prevItems);
+      setTotal((t) => t + 1);
+      setError(e?.message || 'No se pudo eliminar el dispositivo.');
+    }
+  };
+
   const handleExport = async () => {
     try {
       setError('');
@@ -171,6 +255,11 @@ function App() {
             onRefresh={handleRefresh}
             loading={loading}
           />
+          <div style={{ marginTop: 10 }}>
+            <button className="btn btn-primary" onClick={handleNew} disabled={loading}>
+              ＋ Nuevo dispositivo
+            </button>
+          </div>
           <Filters
             filters={filters}
             onChange={(next) => { setFilters(next); setPage(1); }}
@@ -193,6 +282,8 @@ function App() {
             loading={loading}
             sort={{ field: sortField, direction: sortDir }}
             onSort={handleSort}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
           />
 
           <div className="pagination">
@@ -248,6 +339,14 @@ function App() {
           </a>
         </footer>
       </main>
+
+      <DeviceForm
+        open={formOpen}
+        initialData={editingItem}
+        onClose={() => setFormOpen(false)}
+        onSave={handleSave}
+        onDelete={(id) => handleDelete({ id })}
+      />
     </div>
   );
 }

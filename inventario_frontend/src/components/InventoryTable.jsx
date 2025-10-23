@@ -8,20 +8,28 @@ import React from 'react';
  * - loading: boolean
  * - sort: { field: string, direction: 'asc' | 'desc' }
  * - onSort: (field: string) => void
+ * - onEdit: (item) => void
+ * - onDelete: (item) => void
  */
-export default function InventoryTable({ items = [], loading = false, sort, onSort }) {
+export default function InventoryTable({ items = [], loading = false, sort, onSort, onEdit, onDelete }) {
   const columns = [
     { key: 'name', label: 'Dispositivo' },
     { key: 'category', label: 'Categoría' },
     { key: 'status', label: 'Estado' },
     { key: 'assigned_to', label: 'Asignado a' },
     { key: 'updated_at', label: 'Actualizado' },
+    { key: '__actions__', label: 'Acciones' },
   ];
 
   const renderSort = (key) => {
+    if (key === '__actions__') return null;
     if (!sort || sort.field !== key) return <span className="sort-indicator">↕</span>;
     return <span className="sort-indicator">{sort.direction === 'asc' ? '↑' : '↓'}</span>;
-    // purely visual; actual sorting handled by parent via onSort
+  };
+
+  const handleHeaderClick = (key) => {
+    if (key === '__actions__') return;
+    onSort?.(key);
   };
 
   return (
@@ -32,8 +40,8 @@ export default function InventoryTable({ items = [], loading = false, sort, onSo
             {columns.map((c) => (
               <th
                 key={c.key}
-                className="th-sortable"
-                onClick={() => onSort?.(c.key)}
+                className={c.key === '__actions__' ? '' : 'th-sortable'}
+                onClick={() => handleHeaderClick(c.key)}
                 scope="col"
               >
                 {c.label} {renderSort(c.key)}
@@ -53,11 +61,17 @@ export default function InventoryTable({ items = [], loading = false, sort, onSo
           ) : (
             items.map((it, idx) => (
               <tr key={it.id ?? idx}>
-                <td>{fallback(it.name)}</td>
-                <td>{fallback(it.category)}</td>
+                <td>{fallback(it.name ?? it.asset_tag)}</td>
+                <td>{fallback(it.category ?? it.type)}</td>
                 <td>{formatStatus(it.status)}</td>
                 <td>{fallback(it.assigned_to)}</td>
-                <td>{formatDate(it.updated_at)}</td>
+                <td>{formatDate(it.updated_at ?? it.modified_at ?? it.created_at)}</td>
+                <td>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button className="btn" onClick={() => onEdit?.(it)} title="Editar">✎</button>
+                    <button className="btn btn-outline" onClick={() => onDelete?.(it)} title="Eliminar">🗑</button>
+                  </div>
+                </td>
               </tr>
             ))
           )}
