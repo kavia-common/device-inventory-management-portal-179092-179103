@@ -112,20 +112,7 @@ function App() {
     setPage(1);
   };
 
-  const handleImport = async (file) => {
-    if (!file) return;
-    try {
-      setLoading(true);
-      setError('');
-      await importExcel(file);
-      // Refresh after successful import
-      setPage(1);
-    } catch (e) {
-      setError(e?.message || 'Error al importar el archivo.');
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   // Create new item: open empty form
   const handleNew = () => {
@@ -250,7 +237,6 @@ function App() {
           <Toolbar
             search={search}
             onSearchChange={(v) => { setSearch(v); setPage(1); }}
-            onImport={handleImport}
             onExport={handleExport}
             onRefresh={handleRefresh}
             loading={loading}

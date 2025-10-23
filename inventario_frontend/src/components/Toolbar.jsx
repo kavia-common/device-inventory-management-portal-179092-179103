@@ -1,4 +1,5 @@
-import React, { useRef } from 'react';
+import React from 'react';
+import UploadExcel from './UploadExcel';
 
 /**
  * PUBLIC_INTERFACE
@@ -19,23 +20,6 @@ export default function Toolbar({
   onRefresh,
   loading = false,
 }) {
-  const fileInputRef = useRef(null);
-
-  const triggerImport = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
-
-  const handleFileChange = (e) => {
-    const f = e.target.files?.[0];
-    if (f && onImport) {
-      onImport(f);
-    }
-    // reset value so same file re-triggers change later
-    e.target.value = '';
-  };
-
   return (
     <div className="toolbar">
       <input
@@ -47,19 +31,20 @@ export default function Toolbar({
         aria-label="Buscar"
       />
       <div className="spacer" />
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".xlsx,.xls"
-        onChange={handleFileChange}
-        style={{ display: 'none' }}
-      />
       <button className="btn" onClick={onRefresh} disabled={loading} title="Actualizar">
         ⟳ Actualizar
       </button>
-      <button className="btn" onClick={triggerImport} disabled={loading} title="Importar Excel">
-        ⤒ Importar
-      </button>
+      {/* Dedicated UploadExcel component to handle .xlsx uploads and show summary */}
+      <UploadExcel
+        disabled={loading}
+        onComplete={() => {
+          // After successful import, let parent fetch fresh data.
+          // We also bubble file to parent if needed for additional handling.
+        }}
+        onError={() => {
+          // Errors are surfaced inside component; parent can also show a banner if needed.
+        }}
+      />
       <button className="btn btn-primary" onClick={onExport} disabled={loading} title="Exportar Excel">
         ⤓ Exportar
       </button>
