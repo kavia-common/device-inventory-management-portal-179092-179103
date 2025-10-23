@@ -1,0 +1,4 @@
+{
+    "command": "npm run test",
+    "working_directory": "/home/kavia/workspace/code-generation/device-inventory-management-portal-179092-179103/inventario_frontend"
+}
